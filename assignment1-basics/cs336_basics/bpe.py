@@ -107,24 +107,129 @@ def get_global_token_counts(input_path: str, num_processes: int, special_tokens:
     return global_token_counts
 
 
-def test_pretokenization():
-    input_path = "assignment1-basics/data/TinyStoriesV2-GPT4-train.txt"
+def build_pair_indexes(token_counts: dict[tuple[bytes], int]) -> dict[tuple[bytes, bytes], int]:
+    pair_counts = {}
+    for token_tuple, count in token_counts.items():
+        for i in range(len(token_tuple) - 1):
+            pair = (token_tuple[i], token_tuple[i + 1])
+            pair_counts[pair] = pair_counts.get(pair, 0) + count
+    return pair_counts
+
+
+# BPE Training
+def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]):
+    global_token_counts = get_global_token_counts(
+        input_path, os.cpu_count() - 2 if os.cpu_count() > 2 else 1, special_tokens
+    )
+
+    vocab = {i: bytes([i]) for i in range(256)}  # Initial vocab of single bytes
+    for i, spec in enumerate(special_tokens):
+        vocab[256 + i] = spec.encode("utf-8")
+    merges = []
+    word_counts = global_token_counts
+    pair_counts = {}
+    word_by_pair = {}
+
+    for word_tuple, count in word_counts.items():
+        for i in range(len(word_tuple) - 1):
+            pair = (word_tuple[i], word_tuple[i + 1])
+            pair_counts[pair] = pair_counts.get(pair, 0) + count
+            if pair not in word_by_pair:
+                word_by_pair[pair] = set()
+            word_by_pair[pair].add(word_tuple)
+
+    num_merges = vocab_size - len(vocab)
+    for i in range(num_merges):
+        if not pair_counts:
+            break
+
+        # 找到频率最高的 pair
+        best_pair = max(pair_counts.keys(), key=lambda p: (pair_counts[p], p))
+        merges.append(best_pair)
+
+        # 将合并后的新 token 加入词表
+        new_token = best_pair[0] + best_pair[1]
+        vocab[len(vocab)] = new_token
+
+        # 获取包含最佳 best_pair 的所有单词序列，然后从缓存中移除最佳 best_pair
+        words_to_process = word_by_pair.pop(best_pair)
+        del pair_counts[best_pair]
+
+        # 更新只受影响的单词序列
+        for word in list(words_to_process):
+            count = word_counts[word]
+            for j in range(len(word) - 1):
+                p = (word[j], word[j + 1])
+                if p != best_pair:
+                    pair_counts[p] -= count
+                    if pair_counts[p] == 0:
+                        del pair_counts[p]
+                    if word in word_by_pair.get(p, set()):
+                        word_by_pair[p].remove(word)
+                        if not word_by_pair[p]:
+                            del word_by_pair[p]
+
+            # 把老单词从词典中删除
+            del word_counts[word]
+
+            # 构造发生了合并的新词序列
+            new_word_list = []
+            j = 0
+            while j < len(word):
+                if j < len(word) - 1 and word[j] == best_pair[0] and word[j + 1] == best_pair[1]:
+                    new_word_list.append(new_token)
+                    j += 2
+                else:
+                    new_word_list.append(word[j])
+                    j += 1
+            new_word = tuple(new_word_list)
+
+            # 所有新的 pair 更新 pair_counts 和 反向索引
+            word_counts[new_word] = count
+            for j in range(len(new_word) - 1):
+                p = (new_word[j], new_word[j + 1])
+                pair_counts[p] = pair_counts.get(p, 0) + count
+                if p not in word_by_pair:
+                    word_by_pair[p] = set()
+                word_by_pair[p].add(new_word)
+
+    return vocab, merges
+
+
+def test():
+    input_path = "assignment1-basics/data/test.txt"
     special_tokens = ["<|endoftext|>"]
-    num_processes = os.cpu_count() - 2
+    num_processes = os.cpu_count() - 2 if os.cpu_count() > 2 else 1
 
     print(f"Starting pretokenization with {num_processes} processes...")
     global_token_counts = get_global_token_counts(input_path, num_processes, special_tokens)
 
+    print("\n## Pretokenization")
     print(f"Total unique tokens: {len(global_token_counts)}")
     print("前5项：")
     for k, v in list(global_token_counts.items())[:5]:
         print(f"{k}: {v}")
 
+    print("\n## Building Pair Indexes")
+    pairs = build_pair_indexes(global_token_counts)
+    print(f"Total unique pairs: {len(pairs)}")
+    print("前5项：")
+    for k, v in list(pairs.items())[:5]:
+        print(f"{k}: {v}")
 
-# BPE Training
-def train_bpe(input_path: str, vocab_size: int, special_tokens: list[str]):
-    # return vocab, merges
-    pass
+    print("\n## Training BPE")
+    vocab_size = 256 + len(special_tokens) + 10  # 基础256 + 特殊字符1 + 10次Merge
+    print(f"Target vocab_size: {vocab_size}")
+    vocab, merges = train_bpe(input_path, vocab_size, special_tokens)
+
+    print(f"\nFinal vocab size: {len(vocab)}")
+    print("前5次 Merges:")
+    for i, m in enumerate(merges[:5]):
+        print(f"  Merge {i + 1}: {m}")
+
+    print("\nVocab 最新加入的5项:")
+    for k, v in list(vocab.items())[-5:]:
+        print(f"  ID {k}: {v}")
 
 
-# test_pretokenization()
+# test()
