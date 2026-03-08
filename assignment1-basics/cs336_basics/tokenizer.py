@@ -1,6 +1,8 @@
+import os
 import pickle
 import regex as re
 from typing import Iterable, Iterator
+from tqdm import tqdm
 
 # GPT-2 regex pattern
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -27,6 +29,7 @@ class PythonTokenizer:
         self.merge_ranks = {pair: i for i, pair in enumerate(self.merges)}
         # cache mapping from original token string -> list[bytes] after BPE merging
         self._merge_cache: dict[str, list[bytes]] = {}
+
     @classmethod
     def from_files(cls, vocab_filepath: str, merges_filepath: str, special_tokens: list[str] | None = None):
         with open(vocab_filepath, "rb") as f:
@@ -95,9 +98,21 @@ class PythonTokenizer:
             for ti in self.encode(t):
                 yield ti
 
+    def encode_file(self, path: str) -> list[int]:
+        ids: list[int] = []
+        total_bytes = os.path.getsize(path)
+        with open(path, "r", encoding="utf-8") as f:
+            with tqdm(total=total_bytes, unit="B", unit_scale=True,
+                      desc="Encoding", dynamic_ncols=True) as pbar:
+                for line in f:
+                    ids.extend(self.encode(line))
+                    pbar.update(len(line.encode("utf-8")))
+        return ids
 
 try:
-    from fast_cs336 import Tokenizer as _RustTokenizer  # type: ignore
+    from fast_cs336 import Tokenizer as _RustTokenizer  # 462.70 MiB/s, peak memory 60gb
     Tokenizer = _RustTokenizer
+    print("Using Rust Tokenizer...")
 except Exception:
-    Tokenizer = PythonTokenizer
+    Tokenizer = PythonTokenizer  # 5.82 MiB/s peak memory <10gb
+    print("Using Python Tokenizer...")

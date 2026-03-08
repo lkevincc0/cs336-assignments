@@ -21,6 +21,7 @@ dependencies = [
     "ty>=0.0.1a16",
     "regex",
     "jupyter",
+    "maturin>=1.12.6",
 ]
 
 [build-system]

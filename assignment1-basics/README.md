@@ -48,3 +48,8 @@ gunzip owt_valid.txt.gz
 cd ..
 ```
 
+### Build Rust extension (optional)
+```bash
+cd fast_cs336/
+maturin develop --release
+```
