@@ -1,9 +1,25 @@
 repos:
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  # Ruff version.
-  rev: v0.15.4
-  hooks:
-    # Run the linter.
-    - id: ruff-check
-    # Run the formatter.
-    - id: ruff-format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt (auto-discovery)
+        description: Auto find all Cargo projects and run cargo fmt with --check
+        entry: bash -c 'find . -name "Cargo.toml" -not -path "*/target/*" -execdir cargo fmt --all -- --check \;'
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy (auto-discovery)
+        description: Auto find all Cargo projects and run clippy with warnings as errors
+        entry: bash -c 'find . -name "Cargo.toml" -not -path "*/target/*" -execdir cargo clippy --all-targets --all-features -- -D warnings \;'
+        language: system
+        types: [rust]
+        pass_filenames: false
