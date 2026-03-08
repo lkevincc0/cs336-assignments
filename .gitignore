@@ -24,6 +24,7 @@ dist/
 # model and data files
 models/
 data/
+output/
 
 # cache
 .ruff_cache/
