@@ -3,13 +3,14 @@ import time
 import pickle
 from cs336_basics.bpe import train_bpe
 
+
 def main():
     output_dir = "assignment1-basics/output"
     os.makedirs(output_dir, exist_ok=True)
     start_time = time.time()
     vocab, merges = train_bpe(
         input_path="assignment1-basics/data/TinyStoriesV2-GPT4-train.txt",
-        vocab_size=256 + 1 + 10,  
+        vocab_size=256 + 1 + 10,
         special_tokens=["<|endoftext|>"],
     )
     print(f"Training completed in {time.time() - start_time:.2f} seconds.")

@@ -38,7 +38,9 @@ impl Tokenizer {
 
     fn build_special_re(special_tokens: &[String]) -> Option<Regex> {
         if special_tokens.is_empty() { return None; }
-        let pattern = special_tokens.iter()
+        let mut sorted = special_tokens.to_vec();
+        sorted.sort_by(|a, b| b.len().cmp(&a.len()));
+        let pattern = sorted.iter()
             .map(|s| fancy_regex::escape(s))
             .collect::<Vec<_>>()
             .join("|");
@@ -163,7 +165,7 @@ impl Tokenizer {
             if id >= self.vocab.len() { return Err(PyValueError::new_err(format!("id {} out of vocab range", id))); }
             out.extend_from_slice(&self.vocab[id]);
         }
-        String::from_utf8(out).map_err(|e| PyValueError::new_err(format!("utf8 decode error: {}", e)))
+        Ok(String::from_utf8_lossy(&out).into_owned())
     }
 
     /// Encode a single string. Pure Rust — no Python callbacks.

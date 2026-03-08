@@ -7,7 +7,7 @@ start_time = time.time()
 tokenizer = Tokenizer.from_files(
     vocab_filepath="assignment1-basics/output/tiny_story_vocab.pkl",
     merges_filepath="assignment1-basics/output/tiny_story_merges.pkl",
-    special_tokens=["<|endoftext|>"]
+    special_tokens=["<|endoftext|>"],
 )
 
 input_file = "assignment1-basics/data/TinyStoriesV2-GPT4-train.txt"

@@ -1,17 +1,16 @@
 import os
 import pickle
 import regex as re
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from tqdm import tqdm
 
 # GPT-2 regex pattern
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
+
 class PythonTokenizer:
     def __init__(
-        self, vocab: dict[int, bytes], 
-        merges: list[tuple[bytes, bytes]], 
-        special_tokens: list[str] | None = None
+        self, vocab: dict[int, bytes], merges: list[tuple[bytes, bytes]], special_tokens: list[str] | None = None
     ):
         self.vocab = vocab.copy()
         self.merges = merges
@@ -40,19 +39,19 @@ class PythonTokenizer:
 
     def decode(self, ids: list[int]) -> str:
         byte_seq = b"".join([self.vocab[id] for id in ids])
-        return byte_seq.decode("utf-8")
+        return byte_seq.decode("utf-8", errors="replace")
 
     def _merge_word(self, word_bytes: list[bytes]) -> list[bytes]:
         while len(word_bytes) > 1:
-            pairs = [(word_bytes[i], word_bytes[i+1]) for i in range(len(word_bytes)-1)]
-            best_pair = min(pairs, key=lambda p: self.merge_ranks.get(p, float('inf')))
-            if self.merge_ranks.get(best_pair, float('inf')) == float('inf'):
+            pairs = [(word_bytes[i], word_bytes[i + 1]) for i in range(len(word_bytes) - 1)]
+            best_pair = min(pairs, key=lambda p: self.merge_ranks.get(p, float("inf")))
+            if self.merge_ranks.get(best_pair, float("inf")) == float("inf"):
                 break
             new_word_bytes: list[bytes] = []
             i = 0
             while i < len(word_bytes):
-                if i < len(word_bytes) - 1 and (word_bytes[i], word_bytes[i+1]) == best_pair:
-                    merged = word_bytes[i] + word_bytes[i+1]
+                if i < len(word_bytes) - 1 and (word_bytes[i], word_bytes[i + 1]) == best_pair:
+                    merged = word_bytes[i] + word_bytes[i + 1]
                     new_word_bytes.append(merged)
                     i += 2
                 else:
@@ -64,7 +63,8 @@ class PythonTokenizer:
     def encode(self, text: str) -> list[int]:
         ids: list[int] = []
         if self.special_tokens:
-            escaped_specials = [re.escape(tok) for tok in self.special_tokens]
+            sorted_specials = sorted(self.special_tokens, key=len, reverse=True)
+            escaped_specials = [re.escape(tok) for tok in sorted_specials]
             split_pattern = f"({'|'.join(escaped_specials)})"
             text_parts = re.split(split_pattern, text)
         else:
@@ -95,22 +95,22 @@ class PythonTokenizer:
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
         for t in iterable:
-            for ti in self.encode(t):
-                yield ti
+            yield from self.encode(t)
 
     def encode_file(self, path: str) -> list[int]:
         ids: list[int] = []
         total_bytes = os.path.getsize(path)
-        with open(path, "r", encoding="utf-8") as f:
-            with tqdm(total=total_bytes, unit="B", unit_scale=True,
-                      desc="Encoding", dynamic_ncols=True) as pbar:
+        with open(path, encoding="utf-8") as f:
+            with tqdm(total=total_bytes, unit="B", unit_scale=True, desc="Encoding", dynamic_ncols=True) as pbar:
                 for line in f:
                     ids.extend(self.encode(line))
                     pbar.update(len(line.encode("utf-8")))
         return ids
 
+
 try:
     from fast_cs336 import Tokenizer as _RustTokenizer  # 462.70 MiB/s, peak memory 60gb
+
     Tokenizer = _RustTokenizer
     print("Using Rust Tokenizer...")
 except Exception:
